@@ -45,7 +45,7 @@ PALETTE = ["#e6194B","#3cb44b","#4363d8","#f58231","#911eb4","#42d4f4",
 
 # ============ 側欄 ============
 st.sidebar.header("設定")
-end_date = st.sidebar.date_input("As-of 日期", pd.to_datetime("2026-07-14"))
+end_date = st.sidebar.date_input("As-of 日期", pd.Timestamp.today())
 tail_long  = st.sidebar.slider("長期尾巴 (日)", 5, 30, 12)
 tail_mid   = st.sidebar.slider("中期尾巴 (日)", 5, 30, 10)
 tail_short = st.sidebar.slider("短期尾巴 (日)", 3, 20, 8)
