@@ -198,10 +198,10 @@ def scenario(r):
     M, S = r["中期排名"], r["短期排名"]
     if L <= hi and M <= hi and S <= hi:
         return "三期共識強勢" if (dM >= 0 and dS >= 0) else "強勢但短期被追"
-    if L >= lo and dM >= 2 and dS >= 2:  return "★弱者急速爬升"
-    if L >= lo and (dM >= 2 or dS >= 2): return "弱者初步翻揚"
-    if L <= hi and dM <= -2 and dS <= -2: return "⚠強者急速滑落"
-    if L <= hi and (dM <= -2 or dS <= -2): return "強者初步鬆動"
+    if L >= lo and dM >= 3 and dS >= 3:  return "★弱者急速爬升"
+    if L >= lo and (dM >= 3 or dS >= 3): return "弱者初步翻揚"
+    if L <= hi and dM <= -3 and dS <= -3: return "⚠強者急速滑落"
+    if L <= hi and (dM <= -3 or dS <= -3): return "強者初步鬆動"
     if L >= lo and M >= lo and S >= lo:  return "三期共識弱勢"
     return "中性/過渡"
 
