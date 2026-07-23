@@ -45,9 +45,18 @@ def bb_to_yahoo(q):
 def yahoo_search(query):
     try:
         res = yf.Search(query, max_results=8)
-        return [(q.get("symbol",""), q.get("shortname") or q.get("longname") or "",
-                 q.get("exchDisp",""), q.get("quoteType",""))
-                for q in res.quotes if q.get("symbol")]
+        out = [(q.get("symbol",""), q.get("shortname") or q.get("longname") or "",
+                q.get("exchDisp",""), q.get("quoteType",""))
+               for q in res.quotes if q.get("symbol")]
+        # 主板普通股優先: NVDR(-R) / 優先股(-P) / 憑證類 沉底
+        def prio(item):
+            sym, _, _, qtype = item
+            base = sym.split(".")[0]
+            penalty = 0
+            if re.search(r"-[RPFWU]$", base): penalty += 10   # -R NVDR, -P 優先股等
+            if qtype not in ("EQUITY", ""):    penalty += 5    # ETF/權證等排後
+            return penalty
+        return sorted(out, key=prio)
     except Exception:
         return []
 
@@ -74,8 +83,26 @@ suffix = ""
 m = re.search(r"(\.[A-Z]+)$", stock)
 if m: suffix = m.group(1)
 bench_default = DEFAULT_BENCH.get(suffix, "^GSPC")
-benchmark = st.sidebar.text_input("基準指數", bench_default, key=f"bench_{stock}",
-    help="依標的交易所自動建議, 可自行修改")
+
+bench_query = st.sidebar.text_input("搜尋基準", bench_default, key=f"bq_{stock}",
+    help="依標的交易所自動建議。可搜尋: 指數名稱 (Nikkei / 加權指數)、"
+         "代碼 (^TWII)、產業ETF (SOXX)、甚至同業個股 (聯發科) 當比較基準")
+
+bench_cands = [(bench_default, "(交易所預設基準)", "", "")] \
+    if bench_query.strip() == bench_default else []
+bb2 = bb_to_yahoo(bench_query)
+if bb2:
+    bench_cands.append((bb2, "(Bloomberg 格式轉換)", "", ""))
+for c in yahoo_search(bench_query):
+    if c[0] not in [x[0] for x in bench_cands]:
+        bench_cands.append(c)
+if not bench_cands:
+    bench_cands = [(bench_query.strip(), "(直接使用輸入)", "", "")]
+
+bench_labels = [f"{s}  —  {n} {('['+e+']') if e else ''}" for s, n, e, _ in bench_cands]
+bench_sel = st.sidebar.selectbox("選擇基準", bench_labels, index=0,
+                                 key=f"bsel_{stock}")
+benchmark = bench_cands[bench_labels.index(bench_sel)][0]
 
 # ============ 其他設定 ============
 st.sidebar.header("設定")
@@ -130,6 +157,13 @@ if len(raw) < min_days:
 
 price, bench = raw[stock], raw[benchmark]
 
+# 資料品質檢查: 價格凍結偵測 (NVDR/冷門股常見)
+stale_ratio = (price.diff().tail(60) == 0).mean()
+if stale_ratio > 0.3:
+    st.warning(f"⚠ 資料品質警告：{stock} 最近 60 日有 {stale_ratio:.0%} 的天數價格完全未變, "
+               f"可能是流動性極低的掛牌版本 (如泰股 NVDR 的 -R、優先股的 -P)。"
+               f"指標會嚴重失真 — 請改選主板普通股代碼 (例如去掉 -R)。")
+
 # ============ 指標計算 ============
 def rolling_percentile(series, window):
     def pctl(arr): return (arr[:-1] < arr[-1]).mean() * 100
@@ -140,7 +174,7 @@ excess = (price.pct_change(EXCESS_WIN) - bench.pct_change(EXCESS_WIN)) * 100
 absret = price.pct_change(EXCESS_WIN) * 100
 modeA = pd.DataFrame({
     "x": rolling_percentile(excess, PCTL_WINDOW),
-    "y": rolling_percentile(absret, PCTL_WINDOW) - 50,
+    "y": rolling_percentile(absret, PCTL_WINDOW),
 }).dropna()
 
 # --- 配置 B: 領導股 ---
@@ -169,9 +203,9 @@ modeM = pd.DataFrame({"x": mans_x, "y": rolling_slope_pct(rs_line, SLOPE_WIN)}).
 # ============ 左圖模式定義 ============
 LEFT = {
  "A. 雙動能 (Antonacci)": dict(
-    df=modeA, cx=50, cy=0,
+    df=modeA, cx=50, cy=50,
     x_t=f"X: {EXCESS_WIN}日超額報酬的{PCTL_WINDOW}日百分位",
-    y_t=f"Y: {EXCESS_WIN}日絕對報酬的{PCTL_WINDOW}日百分位-50",
+    y_t=f"Y: {EXCESS_WIN}日絕對報酬的{PCTL_WINDOW}日百分位",
     quads=["進攻強勢", "防禦強勢(抗跌)", "真弱勢", "補漲候選"],
     note="右上=相對+絕對雙動能齊備 (Antonacci買進區) | 右下=跌市抗跌 | 左上=漲但輸大盤"),
  "B. 領導股 (O'Neil)": dict(
