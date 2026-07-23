@@ -45,7 +45,7 @@ PALETTE = ["#e6194B","#3cb44b","#4363d8","#f58231","#911eb4","#42d4f4",
 
 # ============ 側欄 ============
 st.sidebar.header("設定")
-end_date = st.sidebar.date_input("As-of 日期", pd.Timestamp.today())
+end_date = st.sidebar.date_input("As-of 日期", pd.to_datetime("2026-07-14"))
 tail_long  = st.sidebar.slider("長期尾巴 (日)", 5, 30, 12)
 tail_mid   = st.sidebar.slider("中期尾巴 (日)", 5, 30, 10)
 tail_short = st.sidebar.slider("短期尾巴 (日)", 3, 20, 8)
@@ -86,7 +86,8 @@ def compute(end_str):
         ser = {}
         for name in ex.columns:
             y = rk[name].shift(d) - rk[name]
-            ser[name] = pd.DataFrame({"x": ex[name], "y": y}).dropna()
+            ser[name] = pd.DataFrame({"x": ex[name], "y": y,
+                                      "rank": rk[name]}).dropna()
         excess_df[key], rank_df[key], series[key] = ex, rk, ser
     return excess_df, rank_df, series
 
@@ -136,11 +137,16 @@ def make_rrg(key):
         lw = 4.5 if focused else 1.8
         op = 0.15 if dim else (1.0 if focused else 0.65)
 
+        n_mkt = len(TICKERS)
+        cd = np.stack([d.index.strftime("%m/%d"),
+                       d["rank"].astype(int).astype(str)], axis=-1)
         fig.add_trace(go.Scatter(
             x=d["x"], y=d["y"], mode="lines", name=name,
             line=dict(color=color, width=lw), opacity=op,
-            legendgroup=name, showlegend=False,
-            hovertemplate=f"<b>{name}</b><br>超額: %{{x:.2f}}%<br>排名Δ: %{{y:+.0f}}名<extra></extra>"))
+            legendgroup=name, showlegend=False, customdata=cd,
+            hovertemplate=(f"<b>{name}</b> %{{customdata[0]}}<br>"
+                           f"排名: 第 %{{customdata[1]}} 名 / {n_mkt}<br>"
+                           f"超額: %{{x:.2f}}%<br>排名Δ: %{{y:+.0f}}名<extra></extra>")))
         fig.add_trace(go.Scatter(
             x=[d["x"].iloc[-1]], y=[d["y"].iloc[-1]],
             mode="markers+text", name=name,
@@ -150,7 +156,11 @@ def make_rrg(key):
             marker=dict(color=color, size=16 if focused else 11,
                         line=dict(color="black", width=1.2)),
             opacity=0.25 if dim else 1.0, legendgroup=name,
-            hovertemplate=f"<b>{name}</b> (最新)<br>超額: %{{x:.2f}}%<br>排名Δ: %{{y:+.0f}}名<extra></extra>"))
+            customdata=[[d.index[-1].strftime("%Y/%m/%d"),
+                         str(int(d["rank"].iloc[-1]))]],
+            hovertemplate=(f"<b>{name}</b> 最新 %{{customdata[0]}}<br>"
+                           f"排名: 第 %{{customdata[1]}} 名 / {n_mkt}<br>"
+                           f"超額: %{{x:.2f}}%<br>排名Δ: %{{y:+.0f}}名<extra></extra>")))
 
     fig.update_layout(
         title=dict(text=f"<b>{cfg['label']}</b>  |  {cfg['x_title']}  |  {cfg['y_title']}"
@@ -198,10 +208,10 @@ def scenario(r):
     M, S = r["中期排名"], r["短期排名"]
     if L <= hi and M <= hi and S <= hi:
         return "三期共識強勢" if (dM >= 0 and dS >= 0) else "強勢但短期被追"
-    if L >= lo and dM >= 3 and dS >= 3:  return "★弱者急速爬升"
-    if L >= lo and (dM >= 3 or dS >= 3): return "弱者初步翻揚"
-    if L <= hi and dM <= -3 and dS <= -3: return "⚠強者急速滑落"
-    if L <= hi and (dM <= -3 or dS <= -3): return "強者初步鬆動"
+    if L >= lo and dM >= 2 and dS >= 2:  return "★弱者急速爬升"
+    if L >= lo and (dM >= 2 or dS >= 2): return "弱者初步翻揚"
+    if L <= hi and dM <= -2 and dS <= -2: return "⚠強者急速滑落"
+    if L <= hi and (dM <= -2 or dS <= -2): return "強者初步鬆動"
     if L >= lo and M >= lo and S >= lo:  return "三期共識弱勢"
     return "中性/過渡"
 
