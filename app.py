@@ -70,19 +70,6 @@ if raw.empty or BENCHMARK not in raw.columns:
     st.stop()
 bench = raw[BENCHMARK]
 
-# ============ 請把程式碼插在這裡 ============
-# 1. 如果你想在終端機 (Terminal / VS Code 下方的終端) 看到結果：
-print("--- EWY 與 ACWI 近10日原始報價 ---")
-print(raw[["EWY", "ACWI"]].tail(10))
-
-# 2. (推薦) 如果你想直接在 Streamlit 網頁上看到結果，用 st.write 會更方便：
-st.write("### 驗證用：EWY 與 ACWI 近10日原始報價")
-st.dataframe(raw[["EWY", "ACWI"]].tail(10))
-
-
-
-
-
 # ============ 計算 ============
 @st.cache_data(ttl=3600)
 def compute(end_str):
